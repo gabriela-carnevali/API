@@ -1,0 +1,18 @@
+{
+  "name": "api-estoque",
+  "version": "1.0.0",
+  "description": "API REST para gestão de estoque e rastreabilidade",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "& 'C:\\Program Files\\nodejs\\node.exe' --test"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.2.0",
+    "supertest": "^7.1.0"
+  }
+}
