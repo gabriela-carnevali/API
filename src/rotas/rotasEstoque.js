@@ -17,9 +17,9 @@ router.post('/entradas', authenticate, authorizePerfil('OPERACIONAL', 'ANALISTA'
     return res.status(400).json({ status: 'erro', mensagem: erroRastreabilidade });
   }
 
-  produto.estoque_atual += Number(quantidade);
-  repositorio.adicionarMovimentacao({
-    id: repositorio.state.movimentacoes.length + 1,
+  const novoEstoque = produto.estoque_atual + Number(quantidade);
+  repositorio.atualizarEstoqueProduto(produto_id, novoEstoque);
+  const movimentacao = repositorio.adicionarMovimentacao({
     produto_id: Number(produto_id),
     usuario_id: req.user.id,
     tipo: 'ENTRADA',
@@ -33,10 +33,10 @@ router.post('/entradas', authenticate, authorizePerfil('OPERACIONAL', 'ANALISTA'
     status: 'sucesso',
     mensagem: 'Entrada de estoque e itens rastreáveis registrados com sucesso.',
     dados: {
-      movimentacao_id: repositorio.state.movimentacoes.length,
+      movimentacao_id: movimentacao.id,
       produto_id: Number(produto_id),
       quantidade_adicionada: Number(quantidade),
-      novo_estoque_total: produto.estoque_atual,
+      novo_estoque_total: novoEstoque,
       itens_rastreaveis_registrados: itens_rastreaveis.length,
       tempo_resposta_ms: 142
     }
@@ -51,14 +51,14 @@ router.post('/saidas', authenticate, authorizePerfil('OPERACIONAL', 'ANALISTA', 
     return res.status(404).json({ status: 'erro', mensagem: 'Produto não encontrado' });
   }
 
-  produto.estoque_atual -= Number(quantidade);
-  const alertaGerado = produto.estoque_atual <= produto.estoque_minimo;
+  const novoEstoque = produto.estoque_atual - Number(quantidade);
+  repositorio.atualizarEstoqueProduto(produto_id, novoEstoque);
+  const alertaGerado = novoEstoque <= produto.estoque_minimo;
   if (alertaGerado) {
     repositorio.adicionarAlerta({ produto_id: produto.id, mensagem: `Estoque baixo para ${produto.nome}` });
   }
 
-  repositorio.adicionarMovimentacao({
-    id: repositorio.state.movimentacoes.length + 1,
+  const movimentacao = repositorio.adicionarMovimentacao({
     produto_id: Number(produto_id),
     usuario_id: req.user.id,
     tipo: 'SAIDA',
@@ -72,9 +72,9 @@ router.post('/saidas', authenticate, authorizePerfil('OPERACIONAL', 'ANALISTA', 
     status: 'sucesso',
     mensagem: 'Saída de estoque registrada com sucesso.',
     dados: {
-      movimentacao_id: repositorio.state.movimentacoes.length,
+      movimentacao_id: movimentacao.id,
       produto_id: Number(produto_id),
-      novo_estoque_total: produto.estoque_atual,
+      novo_estoque_total: novoEstoque,
       alerta_gerado: alertaGerado
     }
   });
@@ -89,13 +89,13 @@ router.post('/ajuste-manual', authenticate, authorizePerfil('GERENTE'), (req, re
   }
 
   const antigo = produto.estoque_atual;
-  produto.estoque_atual = Number(nova_quantidade);
+  const novoEstoque = Number(nova_quantidade);
+  repositorio.atualizarEstoqueProduto(produto_id, novoEstoque);
   repositorio.adicionarAuditoria({
-    id: repositorio.state.auditoria.length + 1,
     produto_id: Number(produto_id),
     usuario_id: req.user.id,
     antigo_valor: antigo,
-    novo_valor: Number(nova_quantidade),
+    novo_valor: novoEstoque,
     justificativa,
     data: new Date().toISOString()
   });
@@ -106,7 +106,7 @@ router.post('/ajuste-manual', authenticate, authorizePerfil('GERENTE'), (req, re
     dados: {
       produto_id: Number(produto_id),
       estoque_anterior: antigo,
-      estoque_atual: produto.estoque_atual,
+      estoque_atual: novoEstoque,
       log_auditoria_registrado: true
     }
   });

@@ -46,17 +46,20 @@ function loginUser(email, senha) {
 
   const senhaValida = bcrypt.compareSync(senha, usuario.senha_hash);
   if (!senhaValida) {
-    usuario.tentativas_falhas += 1;
-    if (usuario.tentativas_falhas >= 3) {
-      usuario.bloqueado_until = new Date(Date.now() + 15 * 60 * 1000);
-      usuario.tentativas_falhas = 0;
+    const tentativasFalhas = (usuario.tentativas_falhas || 0) + 1;
+    let bloqueadoUntil = null;
+
+    if (tentativasFalhas >= 3) {
+      bloqueadoUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      repositorio.atualizarStatusLogin(email, 0, bloqueadoUntil);
       return { statusCode: 403, payload: { status: 'erro', mensagem: 'Conta temporariamente bloqueada' } };
     }
+
+    repositorio.atualizarStatusLogin(email, tentativasFalhas, null);
     return { statusCode: 401, payload: { status: 'erro', mensagem: 'Credenciais inválidas' } };
   }
 
-  usuario.tentativas_falhas = 0;
-  usuario.bloqueado_until = null;
+  repositorio.atualizarStatusLogin(email, 0, null);
 
   return {
     statusCode: 200,
