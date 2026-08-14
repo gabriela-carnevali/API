@@ -93,14 +93,34 @@ test('ajuste manual exige perfil GERENTE e registra auditoria', async () => {
   assert.equal(res.body.dados.log_auditoria_registrado, true);
 });
 
-test('upload de imagem salva arquivo na pasta uploads', async () => {
+test('upload rejeita arquivo com mimetype e extensão falsificados', async () => {
   const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
   const token = login.body.dados.token;
 
   const res = await request(app)
     .post('/api/v1/uploads/imagens')
     .set('Authorization', `Bearer ${token}`)
-    .attach('imagem', Buffer.from('imagem-teste'), { filename: 'teste.png', contentType: 'image/png' });
+    .attach('imagem', Buffer.from('conteudo-que-nao-e-imagem'), { filename: 'arquivo.png', contentType: 'image/png' });
+
+  assert.equal(res.status, 400);
+  assert.match(res.body.mensagem, /imagem|arquivo/i);
+});
+
+test('upload de imagem salva arquivo na pasta uploads', async () => {
+  const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
+  const token = login.body.dados.token;
+
+  const pngValido = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAF' +
+    'c0C2AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJ0UkG' +
+    'AAAAAAgI0v9QAAAAASUVORK5CYII=',
+    'base64'
+  );
+
+  const res = await request(app)
+    .post('/api/v1/uploads/imagens')
+    .set('Authorization', `Bearer ${token}`)
+    .attach('imagem', pngValido, { filename: 'teste.png', contentType: 'image/png' });
 
   assert.equal(res.status, 201);
   assert.match(res.body.dados.caminho, /\/uploads\//);
