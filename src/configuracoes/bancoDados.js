@@ -1,16 +1,29 @@
-require('dotenv').config();
+const sqlite3 = require('sqlite3').sqlite3;
+const path = require('path');
+const fs = require('fs');
 
-const mysql = require('mysql2/promise');
+const caminhoBanco = path.join(__dirname, '../../database.sqlite');
+const caminhoScriptSql = path.join(__dirname, '../../db_bikecity.sql');
 
-const db = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'db_bikecity',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
+const db = new sqlite3.Database(caminhoBanco, (erro) => {
+  if (erro) {
+    console.error('Erro ao conectar ao banco:', erro.message);
+    return;
+  }
+
+  const scriptSql = fs.readFileSync(caminhoScriptSql, 'utf8');
+  db.exec(scriptSql, (erroExec) => {
+    if (erroExec) {
+      console.error('Erro ao executar script SQL:', erroExec.message);
+      return;
+    }
+
+    db.run("INSERT OR IGNORE INTO usuarios (id, nome, email, senha_hash, cargo, perfil, ativo, tentativas_falhas, bloqueado_until) VALUES (1, 'Gerente Teste', 'gerente@teste.com', '$2a$10$QYy6qwIhAmxI5.4G8LyPqO1nYh0fDTRzg3LMR9c7iO8Jk/yA7E0ja', 'Gerente', 'GERENTE', 1, 0, NULL)", (erroInsercao) => {
+      if (erroInsercao) {
+        console.error('Erro ao inserir usuário inicial:', erroInsercao.message);
+      }
+    });
+  });
 });
 
 module.exports = db;

@@ -14,4 +14,9 @@ app.use('/api/v1/produtos', rotasProduto);
 app.use('/api/v1/estoque', rotasEstoque);
 app.use('/api/v1/uploads', rotasUpload);
 
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ status: 'erro', mensagem: 'Erro interno do servidor' });
+});
+
 module.exports = app;

@@ -56,6 +56,32 @@ test('entrada de estoque exige dados de rastreabilidade corretos para baterias',
   assert.match(res.body.mensagem, /numero_serie|data_validade/i);
 });
 
+test('saída rejeita quantidade inválida', async () => {
+  const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
+  const token = login.body.dados.token;
+
+  const res = await request(app)
+    .post('/api/v1/estoque/saidas')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ produto_id: 2, quantidade: -1, destinatario: 'Setor A', motivo: 'Uso interno' });
+
+  assert.equal(res.status, 400);
+  assert.match(res.body.mensagem, /número inteiro maior que zero|quantidade/i);
+});
+
+test('saída maior que o estoque disponível retorna erro 400', async () => {
+  const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
+  const token = login.body.dados.token;
+
+  const res = await request(app)
+    .post('/api/v1/estoque/saidas')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ produto_id: 2, quantidade: 99, destinatario: 'Setor A', motivo: 'Uso interno' });
+
+  assert.equal(res.status, 400);
+  assert.match(res.body.mensagem, /estoque insuficiente|insuficiente/i);
+});
+
 test('saída de estoque gera alerta quando estoque atinge o mínimo', async () => {
   const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
   const token = login.body.dados.token;
@@ -80,6 +106,19 @@ test('saída de estoque gera alerta quando estoque atinge o mínimo', async () =
   assert.equal(res.body.dados.alerta_gerado, true);
 });
 
+test('ajuste manual rejeita nova_quantidade inválida', async () => {
+  const gerenteLogin = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
+  const token = gerenteLogin.body.dados.token;
+
+  const res = await request(app)
+    .post('/api/v1/estoque/ajuste-manual')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ produto_id: 2, nova_quantidade: -1, justificativa: 'Ajuste inválido' });
+
+  assert.equal(res.status, 400);
+  assert.match(res.body.mensagem, /maior ou igual a 0|número/i);
+});
+
 test('ajuste manual exige perfil GERENTE e registra auditoria', async () => {
   const gerenteLogin = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
   const token = gerenteLogin.body.dados.token;
@@ -91,6 +130,19 @@ test('ajuste manual exige perfil GERENTE e registra auditoria', async () => {
 
   assert.equal(res.status, 201);
   assert.equal(res.body.dados.log_auditoria_registrado, true);
+});
+
+test('upload rejeita arquivo maior que 5MB com mensagem clara', async () => {
+  const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
+  const token = login.body.dados.token;
+
+  const res = await request(app)
+    .post('/api/v1/uploads/imagens')
+    .set('Authorization', `Bearer ${token}`)
+    .attach('imagem', Buffer.alloc(6 * 1024 * 1024, 'x'), { filename: 'grande.png', contentType: 'image/png' });
+
+  assert.equal(res.status, 400);
+  assert.match(res.body.mensagem, /muito grande|5MB|máximo/i);
 });
 
 test('upload rejeita arquivo com mimetype e extensão falsificados', async () => {

@@ -4,6 +4,16 @@ const repositorio = require('../repositorios/repositorioMemoria');
 
 const router = express.Router();
 
+function validarQuantidadePositiva(quantidade, campo = 'quantidade') {
+  const valor = Number(quantidade);
+
+  if (!Number.isInteger(valor) || valor <= 0) {
+    return `${campo} deve ser um número inteiro maior que zero.`;
+  }
+
+  return null;
+}
+
 router.post('/entradas', authenticate, authorizePerfil('OPERACIONAL', 'ANALISTA', 'GERENTE'), (req, res) => {
   const { produto_id, quantidade, fornecedor_id, valor_custo, numero_nota_fiscal, itens_rastreaveis = [] } = req.body;
   const produto = repositorio.buscarProdutoPorId(produto_id);
@@ -15,6 +25,11 @@ router.post('/entradas', authenticate, authorizePerfil('OPERACIONAL', 'ANALISTA'
   const erroRastreabilidade = validarRastreabilidade(produto.categoria, itens_rastreaveis, req.body);
   if (erroRastreabilidade) {
     return res.status(400).json({ status: 'erro', mensagem: erroRastreabilidade });
+  }
+
+  const erroQuantidade = validarQuantidadePositiva(quantidade, 'quantidade');
+  if (erroQuantidade) {
+    return res.status(400).json({ status: 'erro', mensagem: erroQuantidade });
   }
 
   const novoEstoque = produto.estoque_atual + Number(quantidade);
@@ -51,7 +66,17 @@ router.post('/saidas', authenticate, authorizePerfil('OPERACIONAL', 'ANALISTA', 
     return res.status(404).json({ status: 'erro', mensagem: 'Produto não encontrado' });
   }
 
-  const novoEstoque = produto.estoque_atual - Number(quantidade);
+  const erroQuantidade = validarQuantidadePositiva(quantidade, 'quantidade');
+  if (erroQuantidade) {
+    return res.status(400).json({ status: 'erro', mensagem: erroQuantidade });
+  }
+
+  const quantidadeSolicitada = Number(quantidade);
+  if (quantidadeSolicitada > produto.estoque_atual) {
+    return res.status(400).json({ status: 'erro', mensagem: 'Estoque insuficiente para a quantidade solicitada.' });
+  }
+
+  const novoEstoque = produto.estoque_atual - quantidadeSolicitada;
   repositorio.atualizarEstoqueProduto(produto_id, novoEstoque);
   const alertaGerado = novoEstoque <= produto.estoque_minimo;
   if (alertaGerado) {
@@ -88,8 +113,14 @@ router.post('/ajuste-manual', authenticate, authorizePerfil('GERENTE'), (req, re
     return res.status(404).json({ status: 'erro', mensagem: 'Produto não encontrado' });
   }
 
+  const erroQuantidade = validarQuantidadePositiva(nova_quantidade, 'nova_quantidade');
+  if (erroQuantidade) {
+    return res.status(400).json({ status: 'erro', mensagem: erroQuantidade });
+  }
+
+  const quantidadeAjuste = Number(nova_quantidade);
   const antigo = produto.estoque_atual;
-  const novoEstoque = Number(nova_quantidade);
+  const novoEstoque = quantidadeAjuste;
   repositorio.atualizarEstoqueProduto(produto_id, novoEstoque);
   repositorio.adicionarAuditoria({
     produto_id: Number(produto_id),

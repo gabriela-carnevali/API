@@ -9,6 +9,10 @@ const router = express.Router();
 router.post('/imagens', authenticate, authorizePerfil('OPERACIONAL', 'ANALISTA', 'GERENTE'), (req, res) => {
   upload.single('imagem')(req, res, async (err) => {
     if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ status: 'erro', mensagem: 'Arquivo muito grande. O tamanho máximo permitido é 5MB.' });
+      }
+
       return res.status(400).json({ status: 'erro', mensagem: err.message || 'Arquivo inválido' });
     }
 

@@ -4,7 +4,7 @@ const fs = require('fs');
 const bcrypt = require('bcryptjs');
 
 const caminhoBanco = path.join(__dirname, '../../database.sqlite');
-const caminhoScriptSql = path.join(__dirname, '../../database.sql');
+const caminhoScriptSql = path.join(__dirname, '../../db_bikecity.sql');
 
 class RepositorioSql {
   constructor() {
