@@ -1,4 +1,5 @@
 const conexaoBanco = require('./conexaoBanco');
+const bcrypt = require('bcryptjs');
 
 const db = conexaoBanco.getDb();
 
@@ -71,7 +72,6 @@ function atualizarSenha(id, novaSenhaHash) {
 }
 
 function criarUsuario({ nome, email, cargo, perfil, senha }) {
-  const bcrypt = require('bcryptjs');
   const senhaHash = bcrypt.hashSync(senha, 10);
   const resultado = db.prepare(
     'INSERT INTO usuarios (nome, email, senha_hash, cargo, perfil, ativo, tentativas_falhas, bloqueado_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?)' 
