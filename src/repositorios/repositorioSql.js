@@ -77,9 +77,12 @@ class RepositorioSql {
 
   listarUsuarios() {
     return this.db.prepare('SELECT * FROM usuarios').all().map((usuario) => ({
-      ...usuario,
-      ativo: Boolean(usuario.ativo),
-      bloqueado_until: usuario.bloqueado_until ? new Date(usuario.bloqueado_until) : null
+      id: usuario.id,
+      nome: usuario.nome,
+      email: usuario.email,
+      cargo: usuario.cargo,
+      perfil: usuario.perfil,
+      ativo: Boolean(usuario.ativo)
     }));
   }
 

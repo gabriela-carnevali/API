@@ -5,6 +5,26 @@ const { app, resetState } = require('../src/server');
 
 test.beforeEach(() => resetState());
 
+test('configuração usa o JWT_SECRET do ambiente', () => {
+  const config = require('../src/configuracoes');
+
+  assert.equal(config.SECRET, process.env.JWT_SECRET);
+});
+
+test('listar usuários não expõe senha_hash na resposta', async () => {
+  const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
+  const token = login.body.dados.token;
+
+  const res = await request(app)
+    .get('/api/v1/usuarios')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.body.dados));
+  assert.ok(res.body.dados.some((usuario) => usuario.email === 'gerente@teste.com'));
+  assert.equal(res.body.dados[0].senha_hash, undefined);
+});
+
 test('login retorna token JWT e bloqueia após três tentativas falhas', async () => {
   const res1 = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'errada' });
   const res2 = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'errada' });

@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 module.exports = {
-  SECRET: 'dev-secret'
+  SECRET: process.env.JWT_SECRET
 };
