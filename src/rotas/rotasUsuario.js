@@ -5,6 +5,10 @@ const { authenticate, authorizePerfil } = require('../servicos/servicoAutenticac
 const router = express.Router();
 
 router.get('/', authenticate, authorizePerfil('GERENTE'), controladorUsuario.listarUsuarios);
+router.get('/:id', authenticate, authorizePerfil('GERENTE'), controladorUsuario.buscarUsuarioPorId);
 router.post('/', authenticate, authorizePerfil('GERENTE'), controladorUsuario.criarUsuario);
+router.put('/:id', authenticate, authorizePerfil('GERENTE'), controladorUsuario.atualizarUsuario);
+router.delete('/:id', authenticate, authorizePerfil('GERENTE'), controladorUsuario.desativarUsuario);
+router.patch('/me/senha', authenticate, controladorUsuario.trocarSenha);
 
 module.exports = router;

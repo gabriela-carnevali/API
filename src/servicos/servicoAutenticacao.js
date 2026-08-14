@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { SECRET } = require('../configuracoes');
-const repositorio = require('../repositorios/repositorioMemoria');
+const repositorio = require('../repositorios/repositorioUsuario');
 
 function authenticate(req, res, next) {
   const header = req.headers.authorization || '';

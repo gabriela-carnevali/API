@@ -34,6 +34,16 @@ class RepositorioSql {
     );
 
     this.db.prepare(
+      "INSERT OR IGNORE INTO fornecedores (id, nome, cnpj, contato, ativo) VALUES (?, ?, ?, ?, ?)"
+    ).run(
+      1,
+      'Fornecedor Padrão',
+      null,
+      'Contato padrão',
+      1
+    );
+
+    this.db.prepare(
       "INSERT OR IGNORE INTO produtos (id, nome, codigo_interno, categoria, unidade_medida, localizacao_deposito, fornecedor_id, custo, dimensoes, estoque_atual, estoque_minimo, estado_montagem, ativo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     ).run(
       1,
@@ -71,12 +81,13 @@ class RepositorioSql {
   }
 
   resetarBanco() {
-    this.db.exec('DELETE FROM movimentacoes; DELETE FROM alertas; DELETE FROM auditoria; DELETE FROM produtos; DELETE FROM usuarios; DELETE FROM sqlite_sequence WHERE name IN (\'usuarios\', \'produtos\', \'movimentacoes\', \'alertas\', \'auditoria\');');
+    this.db.exec('DELETE FROM movimentacoes; DELETE FROM alertas; DELETE FROM auditoria; DELETE FROM produtos; DELETE FROM usuarios; DELETE FROM fornecedores; DELETE FROM sqlite_sequence WHERE name IN (\'usuarios\', \'produtos\', \'movimentacoes\', \'alertas\', \'auditoria\', \'fornecedores\');');
     this.seedDadosIniciais();
   }
 
-  listarUsuarios() {
-    return this.db.prepare('SELECT * FROM usuarios').all().map((usuario) => ({
+  listarUsuarios(incluirInativos = false) {
+    const query = incluirInativos ? 'SELECT * FROM usuarios ORDER BY id' : 'SELECT * FROM usuarios WHERE ativo = 1 ORDER BY id';
+    return this.db.prepare(query).all().map((usuario) => ({
       id: usuario.id,
       nome: usuario.nome,
       email: usuario.email,
@@ -84,6 +95,16 @@ class RepositorioSql {
       perfil: usuario.perfil,
       ativo: Boolean(usuario.ativo)
     }));
+  }
+
+  buscarUsuarioPorId(id) {
+    const usuario = this.db.prepare('SELECT * FROM usuarios WHERE id = ?').get(Number(id));
+    if (!usuario) return null;
+    return {
+      ...usuario,
+      ativo: Boolean(usuario.ativo),
+      bloqueado_until: usuario.bloqueado_until ? new Date(usuario.bloqueado_until) : null
+    };
   }
 
   buscarUsuarioPorEmail(email) {
@@ -99,6 +120,37 @@ class RepositorioSql {
   atualizarStatusLogin(email, tentativasFalhas, bloqueadoUntil) {
     this.db.prepare('UPDATE usuarios SET tentativas_falhas = ?, bloqueado_until = ? WHERE email = ?').run(tentativasFalhas, bloqueadoUntil, email);
     return this.buscarUsuarioPorEmail(email);
+  }
+
+  atualizarUsuario(id, dadosParaAtualizar) {
+    const campos = [];
+    const valores = [];
+
+    const camposPermitidos = ['nome', 'email', 'cargo', 'perfil'];
+    for (const campo of camposPermitidos) {
+      if (Object.prototype.hasOwnProperty.call(dadosParaAtualizar, campo)) {
+        campos.push(`${campo} = ?`);
+        valores.push(dadosParaAtualizar[campo]);
+      }
+    }
+
+    if (!campos.length) {
+      return this.buscarUsuarioPorId(id);
+    }
+
+    valores.push(Number(id));
+    this.db.prepare(`UPDATE usuarios SET ${campos.join(', ')} WHERE id = ?`).run(...valores);
+    return this.buscarUsuarioPorId(id);
+  }
+
+  desativarUsuario(id) {
+    this.db.prepare('UPDATE usuarios SET ativo = 0 WHERE id = ?').run(Number(id));
+    return this.buscarUsuarioPorId(id);
+  }
+
+  atualizarSenha(id, novaSenhaHash) {
+    this.db.prepare('UPDATE usuarios SET senha_hash = ? WHERE id = ?').run(novaSenhaHash, Number(id));
+    return this.buscarUsuarioPorId(id);
   }
 
   criarUsuario({ nome, email, cargo, perfil, senha }) {
@@ -120,11 +172,56 @@ class RepositorioSql {
     };
   }
 
-  listarProdutos() {
-    return this.db.prepare('SELECT * FROM produtos ORDER BY id').all().map((produto) => ({
+  listarFornecedores(incluirInativos = false) {
+    const query = incluirInativos ? 'SELECT * FROM fornecedores ORDER BY id' : 'SELECT * FROM fornecedores WHERE ativo = 1 ORDER BY id';
+    return this.db.prepare(query).all().map((fornecedor) => ({
+      ...fornecedor,
+      ativo: Boolean(fornecedor.ativo)
+    }));
+  }
+
+  buscarFornecedorPorId(id) {
+    const fornecedor = this.db.prepare('SELECT * FROM fornecedores WHERE id = ?').get(Number(id));
+    if (!fornecedor) return null;
+    return {
+      ...fornecedor,
+      ativo: Boolean(fornecedor.ativo)
+    };
+  }
+
+  criarFornecedor(dados) {
+    const resultado = this.db.prepare(
+      'INSERT INTO fornecedores (nome, cnpj, contato, ativo) VALUES (?, ?, ?, ?)' 
+    ).run(dados.nome, dados.cnpj ?? null, dados.contato ?? null, 1);
+
+    return {
+      id: resultado.lastInsertRowid,
+      nome: dados.nome,
+      cnpj: dados.cnpj ?? null,
+      contato: dados.contato ?? null,
+      ativo: true
+    };
+  }
+
+  listarProdutos(incluirInativos = false) {
+    const query = incluirInativos ? 'SELECT * FROM produtos ORDER BY id' : 'SELECT * FROM produtos WHERE ativo = 1 ORDER BY id';
+    return this.db.prepare(query).all().map((produto) => ({
       ...produto,
       ativo: Boolean(produto.ativo)
     }));
+  }
+
+  listarMovimentacoes(produtoId = null) {
+    const parametros = [];
+    let query = 'SELECT * FROM movimentacoes';
+
+    if (produtoId !== null && produtoId !== undefined) {
+      query += ' WHERE produto_id = ?';
+      parametros.push(Number(produtoId));
+    }
+
+    query += ' ORDER BY id DESC';
+    return this.db.prepare(query).all(...parametros);
   }
 
   criarProduto(produtoInput) {
@@ -162,6 +259,32 @@ class RepositorioSql {
     };
   }
 
+  atualizarProduto(id, dadosParaAtualizar) {
+    const campos = [];
+    const valores = [];
+
+    const camposPermitidos = ['nome', 'categoria', 'localizacao_deposito', 'custo', 'estoque_minimo', 'estado_montagem', 'imagem_url'];
+    for (const campo of camposPermitidos) {
+      if (Object.prototype.hasOwnProperty.call(dadosParaAtualizar, campo)) {
+        campos.push(`${campo} = ?`);
+        valores.push(dadosParaAtualizar[campo]);
+      }
+    }
+
+    if (!campos.length) {
+      return this.buscarProdutoPorId(id);
+    }
+
+    valores.push(Number(id));
+    this.db.prepare(`UPDATE produtos SET ${campos.join(', ')} WHERE id = ?`).run(...valores);
+    return this.buscarProdutoPorId(id);
+  }
+
+  inativarProduto(id) {
+    this.db.prepare('UPDATE produtos SET ativo = 0 WHERE id = ?').run(Number(id));
+    return this.buscarProdutoPorId(id);
+  }
+
   atualizarEstoqueProduto(id, novoEstoque) {
     this.db.prepare('UPDATE produtos SET estoque_atual = ? WHERE id = ?').run(novoEstoque, Number(id));
     return this.buscarProdutoPorId(id);
@@ -190,6 +313,10 @@ class RepositorioSql {
   adicionarAlerta(alerta) {
     this.db.prepare('INSERT INTO alertas (produto_id, mensagem) VALUES (?, ?)').run(alerta.produto_id, alerta.mensagem);
     return alerta;
+  }
+
+  listarAlertas() {
+    return this.db.prepare('SELECT * FROM alertas ORDER BY id DESC').all();
   }
 
   adicionarAuditoria(registro) {

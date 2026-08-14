@@ -10,6 +10,14 @@ CREATE TABLE IF NOT EXISTS usuarios (
   bloqueado_until TEXT
 );
 
+CREATE TABLE IF NOT EXISTS fornecedores (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome TEXT NOT NULL,
+  cnpj TEXT UNIQUE,
+  contato TEXT,
+  ativo INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS produtos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   nome TEXT NOT NULL,
@@ -23,7 +31,9 @@ CREATE TABLE IF NOT EXISTS produtos (
   estoque_atual INTEGER NOT NULL DEFAULT 0,
   estoque_minimo INTEGER NOT NULL DEFAULT 5,
   estado_montagem TEXT NOT NULL,
-  ativo INTEGER NOT NULL DEFAULT 1
+  imagem_url TEXT,
+  ativo INTEGER NOT NULL DEFAULT 1,
+  FOREIGN KEY (fornecedor_id) REFERENCES fornecedores(id)
 );
 
 CREATE TABLE IF NOT EXISTS movimentacoes (
@@ -38,7 +48,8 @@ CREATE TABLE IF NOT EXISTS movimentacoes (
   destinatario TEXT,
   motivo TEXT,
   fornecedor_id INTEGER,
-  tipo_transporte TEXT
+  tipo_transporte TEXT,
+  FOREIGN KEY (fornecedor_id) REFERENCES fornecedores(id)
 );
 
 CREATE TABLE IF NOT EXISTS alertas (
@@ -56,4 +67,3 @@ CREATE TABLE IF NOT EXISTS auditoria (
   justificativa TEXT,
   data TEXT NOT NULL
 );
-

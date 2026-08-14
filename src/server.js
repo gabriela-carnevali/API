@@ -1,5 +1,9 @@
 const app = require('./app');
-const { resetState } = require('./repositorios/repositorioMemoria');
+const conexaoBanco = require('./repositorios/conexaoBanco');
+
+function resetState() {
+  conexaoBanco.resetarBanco();
+}
 
 module.exports = { app, resetState };
 

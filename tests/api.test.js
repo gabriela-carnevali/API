@@ -36,6 +36,47 @@ test('login retorna token JWT e bloqueia após três tentativas falhas', async (
   assert.match(res3.body.mensagem, /bloqueada/i);
 });
 
+test('usuário pode atualizar seus dados, ser desativado e trocar a própria senha', async () => {
+  const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
+  const token = login.body.dados.token;
+
+  const detalhes = await request(app)
+    .get('/api/v1/usuarios/1')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(detalhes.status, 200);
+  assert.equal(detalhes.body.dados.email, 'gerente@teste.com');
+
+  const atualizacao = await request(app)
+    .put('/api/v1/usuarios/1')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ nome: 'Gerente Atualizado', cargo: 'Coordenador' });
+
+  assert.equal(atualizacao.status, 200);
+  assert.equal(atualizacao.body.dados.nome, 'Gerente Atualizado');
+
+  const senha = await request(app)
+    .patch('/api/v1/usuarios/me/senha')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ senhaAtual: 'senha123', novaSenha: 'novaSenha123' });
+
+  assert.equal(senha.status, 200);
+  assert.equal(senha.body.dados.senha_alterada, true);
+
+  const loginNovaSenha = await request(app)
+    .post('/api/v1/auth/login')
+    .send({ email: 'gerente@teste.com', senha: 'novaSenha123' });
+
+  assert.equal(loginNovaSenha.status, 200);
+
+  const inativacao = await request(app)
+    .delete('/api/v1/usuarios/1')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(inativacao.status, 200);
+  assert.equal(inativacao.body.dados.ativo, false);
+});
+
 test('entrada de estoque exige dados de rastreabilidade corretos para baterias', async () => {
   const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
   const token = login.body.dados.token;
@@ -106,6 +147,72 @@ test('saída de estoque gera alerta quando estoque atinge o mínimo', async () =
   assert.equal(res.body.dados.alerta_gerado, true);
 });
 
+test('lista alertas de estoque gerados', async () => {
+  const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
+  const token = login.body.dados.token;
+
+  await request(app)
+    .post('/api/v1/estoque/saidas')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ produto_id: 2, quantidade: 4, destinatario: 'Setor A', motivo: 'Uso interno' });
+
+  const res = await request(app)
+    .get('/api/v1/estoque/alertas')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.body.dados));
+  assert.ok(res.body.dados.some((alerta) => alerta.produto_id === 2 && alerta.mensagem.includes('Peça A')));
+});
+
+test('produto específico, atualização e inativação funcionam com lista filtrada', async () => {
+  const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
+  const token = login.body.dados.token;
+
+  const detalhe = await request(app)
+    .get('/api/v1/produtos/2')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(detalhe.status, 200);
+  assert.equal(detalhe.body.dados.nome, 'Peça A');
+
+  const atualizacao = await request(app)
+    .put('/api/v1/produtos/2')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      nome: 'Peça A Editada',
+      categoria: 'PECA_ESTRUTURAL',
+      localizacao_deposito: 'Setor Z',
+      custo: 75,
+      estoque_minimo: 2,
+      estado_montagem: 'NAO_APLICA'
+    });
+
+  assert.equal(atualizacao.status, 200);
+  assert.equal(atualizacao.body.dados.nome, 'Peça A Editada');
+
+  const inativacao = await request(app)
+    .delete('/api/v1/produtos/2')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(inativacao.status, 200);
+  assert.equal(inativacao.body.dados.ativo, false);
+
+  const lista = await request(app)
+    .get('/api/v1/produtos')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(lista.status, 200);
+  assert.ok(!lista.body.dados.some((produto) => produto.id === 2));
+
+  const listaComInativos = await request(app)
+    .get('/api/v1/produtos?incluirInativos=true')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(listaComInativos.status, 200);
+  assert.ok(listaComInativos.body.dados.some((produto) => produto.id === 2 && produto.ativo === false));
+});
+
 test('ajuste manual rejeita nova_quantidade inválida', async () => {
   const gerenteLogin = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
   const token = gerenteLogin.body.dados.token;
@@ -130,6 +237,32 @@ test('ajuste manual exige perfil GERENTE e registra auditoria', async () => {
 
   assert.equal(res.status, 201);
   assert.equal(res.body.dados.log_auditoria_registrado, true);
+});
+
+test('lista movimentações do estoque com filtro por produto', async () => {
+  const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
+  const token = login.body.dados.token;
+
+  await request(app)
+    .post('/api/v1/estoque/entradas')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      produto_id: 2,
+      quantidade: 3,
+      fornecedor_id: 1,
+      valor_custo: 50,
+      numero_nota_fiscal: 'NF-3',
+      numero_serie: 'SERIE-123',
+      lote: 'LOTE-ABC'
+    });
+
+  const res = await request(app)
+    .get('/api/v1/estoque/movimentacoes?produto_id=2')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(res.body.dados));
+  assert.ok(res.body.dados.some((mov) => mov.produto_id === 2 && mov.tipo === 'ENTRADA'));
 });
 
 test('upload rejeita arquivo maior que 5MB com mensagem clara', async () => {
@@ -176,4 +309,98 @@ test('upload de imagem salva arquivo na pasta uploads', async () => {
 
   assert.equal(res.status, 201);
   assert.match(res.body.dados.caminho, /\/uploads\//);
+});
+
+test('fornecedor é criado e consultado com validação de produto', async () => {
+  const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
+  const token = login.body.dados.token;
+
+  const cadastroFornecedor = await request(app)
+    .post('/api/v1/fornecedores')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ nome: 'ACME Ltda', cnpj: '12.345.678/0001-90', contato: 'Maria' });
+
+  assert.equal(cadastroFornecedor.status, 201);
+  assert.ok(cadastroFornecedor.body.dados.id);
+
+  const listagem = await request(app)
+    .get('/api/v1/fornecedores')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(listagem.status, 200);
+  assert.ok(Array.isArray(listagem.body.dados));
+
+  const detalhe = await request(app)
+    .get(`/api/v1/fornecedores/${cadastroFornecedor.body.dados.id}`)
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(detalhe.status, 200);
+  assert.equal(detalhe.body.dados.nome, 'ACME Ltda');
+
+  const produtoInvalido = await request(app)
+    .post('/api/v1/produtos')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      nome: 'Produto sem fornecedor',
+      codigo_interno: 'PROD-999',
+      categoria: 'PECA_ESTRUTURAL',
+      unidade_medida: 'UN',
+      localizacao_deposito: 'Setor C',
+      fornecedor_id: 999,
+      custo: 45,
+      dimensoes: '10x10',
+      estoque_minimo: 2,
+      estado_montagem: 'NAO_APLICA'
+    });
+
+  assert.equal(produtoInvalido.status, 400);
+  assert.match(produtoInvalido.body.mensagem, /fornecedor/i);
+});
+
+test('upload de imagem vincula ao produto correto', async () => {
+  const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
+  const token = login.body.dados.token;
+
+  const pngValido = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAF' +
+    'c0C2AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJ0UkG' +
+    'AAAAAAgI0v9QAAAAASUVORK5CYII=',
+    'base64'
+  );
+
+  const res = await request(app)
+    .post('/api/v1/produtos/1/imagem')
+    .set('Authorization', `Bearer ${token}`)
+    .attach('imagem', pngValido, { filename: 'produto1.png', contentType: 'image/png' });
+
+  assert.equal(res.status, 201);
+  assert.match(res.body.dados.caminho, /\/uploads\//);
+  assert.equal(res.body.dados.produto_id, 1);
+
+  const produtoAtualizado = await request(app)
+    .get('/api/v1/produtos/1')
+    .set('Authorization', `Bearer ${token}`);
+
+  assert.equal(produtoAtualizado.status, 200);
+  assert.equal(produtoAtualizado.body.dados.imagem_url, res.body.dados.caminho);
+});
+
+test('upload de imagem para produto inexistente retorna 404', async () => {
+  const login = await request(app).post('/api/v1/auth/login').send({ email: 'gerente@teste.com', senha: 'senha123' });
+  const token = login.body.dados.token;
+
+  const pngValido = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAF' +
+    'c0C2AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJ0UkG' +
+    'AAAAAAgI0v9QAAAAASUVORK5CYII=',
+    'base64'
+  );
+
+  const res = await request(app)
+    .post('/api/v1/produtos/999/imagem')
+    .set('Authorization', `Bearer ${token}`)
+    .attach('imagem', pngValido, { filename: 'produto999.png', contentType: 'image/png' });
+
+  assert.equal(res.status, 404);
+  assert.match(res.body.mensagem, /produto|não encontrado/i);
 });

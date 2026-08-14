@@ -23,8 +23,12 @@ function resetState() {
   seed();
 }
 
-function listarUsuarios() {
-  return repositorioSql.listarUsuarios();
+function listarUsuarios(incluirInativos = false) {
+  return repositorioSql.listarUsuarios(incluirInativos);
+}
+
+function buscarUsuarioPorId(id) {
+  return repositorioSql.buscarUsuarioPorId(id);
 }
 
 function buscarUsuarioPorEmail(email) {
@@ -42,12 +46,40 @@ function atualizarStatusLogin(email, tentativasFalhas, bloqueadoUntil) {
   return repositorioSql.atualizarStatusLogin(email, tentativasFalhas, bloqueadoUntil);
 }
 
+function atualizarUsuario(id, dadosParaAtualizar) {
+  return repositorioSql.atualizarUsuario(id, dadosParaAtualizar);
+}
+
+function desativarUsuario(id) {
+  return repositorioSql.desativarUsuario(id);
+}
+
+function atualizarSenha(id, novaSenhaHash) {
+  return repositorioSql.atualizarSenha(id, novaSenhaHash);
+}
+
 function criarUsuario(data) {
   return repositorioSql.criarUsuario(data);
 }
 
-function listarProdutos() {
-  return repositorioSql.listarProdutos();
+function listarFornecedores(incluirInativos = false) {
+  return repositorioSql.listarFornecedores(incluirInativos);
+}
+
+function buscarFornecedorPorId(id) {
+  return repositorioSql.buscarFornecedorPorId(id);
+}
+
+function criarFornecedor(dados) {
+  return repositorioSql.criarFornecedor(dados);
+}
+
+function listarProdutos(incluirInativos = false) {
+  return repositorioSql.listarProdutos(incluirInativos);
+}
+
+function listarMovimentacoes(produtoId = null) {
+  return repositorioSql.listarMovimentacoes(produtoId);
 }
 
 function criarProduto(produtoInput) {
@@ -56,6 +88,14 @@ function criarProduto(produtoInput) {
 
 function buscarProdutoPorId(id) {
   return repositorioSql.buscarProdutoPorId(id);
+}
+
+function atualizarProduto(id, dadosParaAtualizar) {
+  return repositorioSql.atualizarProduto(id, dadosParaAtualizar);
+}
+
+function inativarProduto(id) {
+  return repositorioSql.inativarProduto(id);
 }
 
 function atualizarEstoqueProduto(id, novoEstoque) {
@@ -70,6 +110,10 @@ function adicionarAlerta(alerta) {
   return repositorioSql.adicionarAlerta(alerta);
 }
 
+function listarAlertas() {
+  return repositorioSql.listarAlertas();
+}
+
 function adicionarAuditoria(registro) {
   return repositorioSql.adicionarAuditoria(registro);
 }
@@ -78,14 +122,25 @@ module.exports = {
   state,
   resetState,
   listarUsuarios,
+  buscarUsuarioPorId,
   buscarUsuarioPorEmail,
   atualizarStatusLogin,
+  atualizarUsuario,
+  desativarUsuario,
+  atualizarSenha,
   criarUsuario,
+  listarFornecedores,
+  buscarFornecedorPorId,
+  criarFornecedor,
   listarProdutos,
+  listarMovimentacoes,
   criarProduto,
   buscarProdutoPorId,
+  atualizarProduto,
+  inativarProduto,
   atualizarEstoqueProduto,
   adicionarMovimentacao,
   adicionarAlerta,
+  listarAlertas,
   adicionarAuditoria
 };

@@ -1,7 +1,48 @@
-const repositorio = require('../repositorios/repositorioMemoria');
+const bcrypt = require('bcryptjs');
+const repositorio = require('../repositorios/repositorioUsuario');
 
-function listarUsuarios() {
-  return repositorio.listarUsuarios();
+function listarUsuarios(incluirInativos = false) {
+  return repositorio.listarUsuarios(incluirInativos);
+}
+
+function buscarUsuarioPorId(id) {
+  return repositorio.buscarUsuarioPorId(id);
+}
+
+function atualizarUsuario(id, dadosParaAtualizar) {
+  return repositorio.atualizarUsuario(id, dadosParaAtualizar);
+}
+
+function desativarUsuario(id) {
+  return repositorio.desativarUsuario(id);
+}
+
+function trocarSenha(id, senhaAtual, novaSenha) {
+  const usuario = repositorio.buscarUsuarioPorId(id);
+  if (!usuario) {
+    return { statusCode: 404, payload: { status: 'erro', mensagem: 'Usuário não encontrado' } };
+  }
+
+  const senhaAtualValida = bcrypt.compareSync(senhaAtual, usuario.senha_hash);
+  if (!senhaAtualValida) {
+    return { statusCode: 400, payload: { status: 'erro', mensagem: 'Senha atual incorreta' } };
+  }
+
+  if (!novaSenha || String(novaSenha).trim().length < 6) {
+    return { statusCode: 400, payload: { status: 'erro', mensagem: 'A nova senha deve ter pelo menos 6 caracteres' } };
+  }
+
+  const novaSenhaHash = bcrypt.hashSync(novaSenha, 10);
+  repositorio.atualizarSenha(id, novaSenhaHash);
+
+  return {
+    statusCode: 200,
+    payload: {
+      status: 'sucesso',
+      mensagem: 'Senha alterada com sucesso',
+      dados: { senha_alterada: true }
+    }
+  };
 }
 
 function criarUsuario(data) {
@@ -26,5 +67,9 @@ function criarUsuario(data) {
 
 module.exports = {
   listarUsuarios,
+  buscarUsuarioPorId,
+  atualizarUsuario,
+  desativarUsuario,
+  trocarSenha,
   criarUsuario
 };
